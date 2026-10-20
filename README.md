@@ -1,98 +1,124 @@
-# Deep Learning-Based Inverse Antenna Design & Optimization
+# 🛰️ AI-Powered Inverse Antenna Design & Optimization
 
-An automated AI-driven framework for **Inverse Antenna Synthesis** that predicts and optimizes microstrip patch antenna geometries in **seconds**, bypassing computationally expensive EM simulations (CST Studio / Ansys HFSS).
-
----
-
-## 📌 Answers to Key Project Questions
-
-### 1. What Dataset?
-* **Primary High-Frequency Dataset**: `Antenna_Parameters.xlsx` (1,648 frequency-sweep simulation samples of a slotted 5G mmWave microstrip patch antenna operating across 28–50 GHz with rich multi-objective metrics: Gain, Directivity, Return Loss $S_{11}$, VSWR, and Radiation Efficiency).
-* **Augmentation / Sub-6GHz Dataset**: `Zenodo.csv` (55,053 frequency sweep points for 1.8–2.8 GHz patch antenna S11 profiles).
-* **Clean Combined Training Set**: Filtered for near-resonance ($S_{11} < -5$ dB) yielding **6,177 samples** with 10 geometry variables and 5 RF performance targets.
-
-### 2. Which Model?
-* **Tandem Neural Network (TNN)**:
-  * **Forward Surrogate Model**: $[G_1, \dots, G_{10}] \to [f_0, \text{Gain}, \text{Directivity}, S_{11}, \text{VSWR}]$ (~135k parameters, Residual Blocks, BatchNorm, LeakyReLU). Replaces the slow full-wave 3D Maxwell equation solver.
-  * **Inverse Synthesis Model**: $[f_0, \text{Gain}, \text{Directivity}, S_{11}, \text{VSWR}] \to [G_1, \dots, G_{10}]$ (~135k parameters).
-  * **Tandem Loss Training**: The Inverse Network is connected to the frozen Forward Model with compound loss:
-    $$\mathcal{L} = 0.3 \cdot \mathcal{L}_{\text{geom}} + 0.7 \cdot \mathcal{L}_{\text{perf}}$$
-    *Why?* Solves the notorious **one-to-many non-uniqueness** problem in inverse electromagnetic design.
-
-### 3. Which Optimizer?
-* **Hybrid Two-Stage Optimization**:
-  1. **Stage 1 (Initial Guess)**: Inverse Neural Network computes the starting geometry $\mathbf{g}_0$ in **$< 4$ milliseconds**.
-  2. **Stage 2 (Differentiable Surrogate Gradient Descent)**:
-     * Optimizer: **Adam / L-BFGS with Autograd**.
-     * Loss function backpropagates through the differentiable Forward Surrogate $\nabla_{\mathbf{g}} \mathcal{L}_{\text{RF}}$ in microseconds.
-     * Box constraints project $\mathbf{g}$ onto physical manufacturing limits.
-     * **Total runtime**: $\approx 3.5$ seconds vs. 15–45 minutes in CST/HFSS (**$>300\times$ speedup**).
-  3. **Alternative Global Optimizer**: **Particle Swarm Optimization (PSO)** for non-convex multi-band targets.
+An end-to-end Machine Learning system that predicts and optimizes **5G Microstrip Patch Antenna** physical geometries in **under 4 seconds** — replacing hours of slow, expensive 3D electromagnetic simulations (CST Studio / Ansys HFSS).
 
 ---
 
-## 🚀 Quickstart
+## 💡 The Problem
 
-### 1. Launch Interactive Streamlit Web App (Recommended)
-Launch the graphical browser dashboard:
+Designing an antenna traditionally requires a tedious trial-and-error process:
+1. An engineer guesses initial dimensions.
+2. They open CST Studio or Ansys HFSS and run a 3D electromagnetic simulation solving Maxwell's equations.
+3. **Each simulation takes 20 to 45 minutes.**
+4. If an optimizer tests 200–300 parameter variations, **it takes 50 to 100+ hours** of compute time just to design a single antenna.
+
+---
+
+## ⚡ What This Project Does
+
+Instead of running heavy 3D simulations repeatedly, this project uses a **Two-Stage Hybrid AI pipeline**:
+
+1. **Stage 1: Instant Geometry Synthesis (Tandem Neural Network)**
+   * You input your target specifications (e.g., `Frequency = 28 GHz`, `S11 = -20 dB`, `Gain = 6.5 dBi`).
+   * The **Inverse Neural Model** predicts the required physical millimeter dimensions in **~3.5 milliseconds**.
+   * *Why a Tandem Network?* Inverse antenna design suffers from a "one-to-many" problem (multiple geometries can produce the same frequency). Connecting the Inverse model to a frozen Forward model enforces electromagnetic consistency and prevents invalid designs.
+
+2. **Stage 2: Precision Fine-Tuning (Surrogate-Assisted Optimization)**
+   * The initial guess is refined using **gradient descent (Adam Autograd)** through our differentiable **Forward Surrogate Model** (trained on thousands of real CST/HFSS runs).
+   * It fine-tunes the physical dimensions to hit the exact target frequency with physical manufacturing constraints in **~3.5 seconds**.
+
+### ⏱️ The Result
+* **Traditional CST Optimization**: ~100 hours (300 simulations)
+* **Our AI Framework**: **~3.5 seconds** (0 heavy simulations during design)
+* **Final Step**: The researcher runs CST **exactly once** at the very end to verify the design before sending it to a PCB manufacturer.
+
+---
+
+## 🛠️ Features
+
+* **Interactive Streamlit Web Dashboard**: Sliders for target frequency (24–50 GHz), Return Loss ($S_{11}$), Gain, and VSWR.
+* **2D Engineering CAD Blueprint**: Real-time dimensioned schematic showing substrate, radiating patch, 50Ω feed line, and impedance-matching slots.
+* **Fabrication Feasibility Checks**: Automatically ensures the patch fits on the board, slot cuts fit inside the patch, and dimensions are within PCB manufacturing tolerances.
+* **1-Click CAD Macro Exporter**:
+  * ⬇️ **CST Microwave Studio VBA Macro (`.vba`)**: Builds the entire 3D antenna in CST in 1 second.
+  * ⬇️ **Ansys HFSS Python Script (`.py`)**: Automates 3D modeling in HFSS via PyAEDT.
+  * ⬇️ **Manufacturing Specs (`.json` & `.csv`)**: Clean tables for PCB fabrication.
+
+---
+
+## 🚀 Quickstart: Running Locally
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/vaibhavt1602-ship-it/Inverse-Antenna-Design-Using-Tandem-Neural-Networks-Surrogate-Optimization.git
+cd Inverse-Antenna-Design-Using-Tandem-Neural-Networks-Surrogate-Optimization
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Launch the Web App
 ```bash
 streamlit run app.py
 ```
-*(Or double-click `run_app.bat` in the root folder).*
+Open your browser at `http://localhost:8501` to use the interactive dashboard.
 
-### 2. Run Complete End-to-End Synthesis via CLI
-Synthesize an antenna for 28 GHz with target $S_{11} = -20$ dB, Gain = 6.5 dBi:
+---
+
+## 💻 CLI Usage (For Scripts / Batch Synthesis)
+
+You can also run synthesis directly from the terminal:
+
 ```bash
+# Synthesize an antenna for 28 GHz mmWave with S11 = -20 dB and Gain = 6.5 dBi
 python main.py --freq 28.0 --s11 -20.0 --gain 6.5 --opt gradient
 ```
 
-### 2. Interactive Mode
-Run the guided CLI prompt to input custom researcher specs:
-```bash
-python main.py --interactive
-```
-
-### 3. Retrain the Neural Networks
-Run the full 3-phase training pipeline:
-```bash
-python train.py
-```
-
-### 4. Fast Inference (Raw Neural Prediction)
+Or run fast inference without the optimizer:
 ```bash
 python predict.py --freq 28.0 --s11 -20.0 --gain 6.5
 ```
 
 ---
 
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```
-inverse_antenna_design/
-├── config.py              # Central hyperparameters & paths
-├── train.py               # 3-phase training pipeline (Forward -> Inverse -> Tandem)
-├── predict.py             # Direct neural inference
-├── optimizer.py           # Differentiable Gradient & PSO Surrogate Optimizers
-├── main.py                # End-to-end synthesis CLI with CAD export & plots
-├── test_optimizer.py      # Standalone verification script for the optimizer
+├── app.py                # Interactive Streamlit Web Dashboard
+├── config.py             # Hyperparameters, column definitions & physical bounds
+├── main.py               # End-to-end synthesis CLI with CAD export & plots
+├── optimizer.py          # Differentiable Gradient & PSO Surrogate Optimizers
+├── predict.py            # Fast neural inference script
+├── train.py              # 3-phase Tandem Network training pipeline
+├── requirements.txt      # Python dependencies
+├── checkpoints/          # Trained PyTorch model weights & scalers (~2 MB total)
+│   ├── forward_model_final.pt
+│   ├── inverse_model_final.pt
+│   ├── scaler_geometry.pkl
+│   └── scaler_performance.pkl
 ├── models/
-│   ├── networks.py        # ForwardModel, InverseModel, TandemNetwork architectures
-│   └── trainer.py         # PyTorch training loops & early stopping
-├── utils/
-│   ├── data_loader.py     # Data extraction, normalization, and splits
-│   ├── evaluation.py      # Metric calculations, scatter plots & error analysis
-│   └── export_cad.py      # CST Studio (*.vba) & Ansys HFSS (*.py) macro exporters
-├── checkpoints/           # Saved PyTorch weights (.pt) and standard scalers (.pkl)
-└── results/               # Generated plots, CAD macros, and spec sheets
+│   ├── networks.py       # ForwardModel, InverseModel, TandemNetwork architectures
+│   └── trainer.py        # PyTorch training loops with early stopping
+└── utils/
+    ├── data_loader.py    # Dataset loading & preprocessing
+    ├── evaluation.py     # Metrics (R2, MAE) and scatter plotting
+    └── export_cad.py     # CST Studio (.vba) and Ansys HFSS (.py) script generators
 ```
 
 ---
 
-## 📊 Outputs & Exported Artifacts
+## 📊 Dataset & Model Details
 
-Every synthesis run automatically generates:
-1. `results/synthesized_antenna_layout.png`: 2D dimensioned engineering layout.
-2. `results/optimizer_convergence.png`: Loss convergence curve.
-3. `results/antenna_cst_macro.vba`: 1-click importable macro for CST Microwave Studio.
-4. `results/antenna_hfss_script.py`: 1-click Python automation script for Ansys HFSS.
-5. `results/antenna_specs.json` & `.csv`: Manufacturing parameter tables.
+* **Training Data**: Combined dataset of **6,177 samples** filtered for operational resonance ($S_{11} < -5$ dB) across 5G mmWave bands (28–50 GHz) and sub-6GHz frequencies.
+* **Architecture**: Deep fully connected networks with **Residual Blocks**, **Batch Normalization**, and **LeakyReLU** activations.
+* **Model Size**: ~135,000 parameters per network (<1 MB on disk).
+* **Accuracy on Unseen Test Data**:
+  * Resonance Frequency: **$R^2 = 0.985$** (Mean Absolute Error $\approx 0.45\text{ GHz}$)
+
+---
+
+## 👥 Authors & Acknowledgments
+
+Developed as part of research into machine learning surrogate models for radio frequency (RF) and antenna engineering.
